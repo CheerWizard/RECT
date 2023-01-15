@@ -1,4 +1,4 @@
-from PyQt5.QtCore import Qt, QEvent
+from PyQt5.QtCore import Qt, QEvent, pyqtSignal
 from PyQt5.QtGui import QPainter, QMouseEvent
 from PyQt5.QtWidgets import QGraphicsView
 
@@ -7,6 +7,9 @@ from node_editor.presentation.components import *
 
 
 class NodeGraphicsView(QGraphicsView):
+
+    scenePosChanged = pyqtSignal(int, int)
+
     def __init__(self, scene, parent=None):
         super().__init__(parent)
         # scene
@@ -124,6 +127,9 @@ class NodeGraphicsView(QGraphicsView):
             self._endCutLine()
             return
 
+        if self.dragMode() == QGraphicsView.DragMode.RubberBandDrag:
+            self.scene.history.store("View: RubberBandDrag selection")
+
         super().mouseReleaseEvent(event)
 
     def _endCutLine(self):
@@ -140,6 +146,8 @@ class NodeGraphicsView(QGraphicsView):
             for edge in self.scene.edges:
                 if edge.grEdge.intersectsWith(p1, p2):
                     edge.remove()
+
+        self.scene.history.store("View::_cutIntersectingEdges")
 
     def _edgeDragStart(self, item):
         log(self, "Begin EDGE_DRAG")
@@ -166,6 +174,9 @@ class NodeGraphicsView(QGraphicsView):
                 self.dragEdge.start_socket.bindEdge(self.dragEdge)
                 self.dragEdge.end_socket.bindEdge(self.dragEdge)
                 self.dragEdge.updatePositions()
+
+                self.scene.history.store("New edge created during drag in View::_edgeDragEnd")
+
                 return True
 
         self.dragEdge.remove()
@@ -209,27 +220,20 @@ class NodeGraphicsView(QGraphicsView):
             pos = self.mapToScene(event.pos())
             self.cutLine.line_points.append(pos)
             self.cutLine.update()
+        # notify scene pos changed
+        self.lastMousePos = self.mapToScene(event.pos())
+        self.scenePosChanged.emit(
+            int(self.lastMousePos.x()),
+            int(self.lastMousePos.y())
+        )
 
         super().mouseMoveEvent(event)
 
-    def keyPressEvent(self, event):
-        # delete items from scene
-        if event.key() == Qt.Key_Delete:
-            if self.scene.mode is not SceneMode.NODE_EDIT:
-                self._deleteSelected()
-                return
-        # save scene to file
-        elif event.key() == Qt.Key_S and event.modifiers() & Qt.ControlModifier:
-            self.scene.saveToFile("res/node_editor/node_graph.json")
-        # load scene from file
-        elif event.key() == Qt.Key_L and event.modifiers() & Qt.ControlModifier:
-            self.scene.loadFrom("res/node_editor/node_graph.json")
-
-        super().keyPressEvent(event)
-
-    def _deleteSelected(self):
+    def deleteSelected(self):
         for item in self.scene.grScene.selectedItems():
             if type(item) == EdgeWidget:
                 item.edge.remove()
             elif hasattr(item, 'node'):
                 item.node.remove()
+
+        self.scene.history.store("View::_deleteSelected")

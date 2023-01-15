@@ -2,6 +2,7 @@ import json
 from collections import OrderedDict
 
 from logger import log
+from node_editor.history.scene_history import SceneHistory
 from serialization.serializable import Serializable
 
 from node_editor.presentation.components import *
@@ -16,6 +17,7 @@ class Scene(Serializable):
         self.edges = []
         self.width, self.height = 64000, 64000
         self.mode = SceneMode.NONE
+        self.history = SceneHistory(self)
         self.init()
 
     def init(self):
@@ -63,6 +65,7 @@ class Scene(Serializable):
     def deserialize(self, data, hashmap={}):
         self.clear()
         hashmap = {}
+        self.id = data['id']
         # scene info
         self.width = data['width']
         self.height = data['height']

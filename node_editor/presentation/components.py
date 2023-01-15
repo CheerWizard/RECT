@@ -93,6 +93,8 @@ class NodeWidget(QGraphicsItem):
         self.height = 240
         self.edge_size = 10
         self.title_height = 24
+        self.moved = False
+
         self._padding = 4.0
 
         self._pen_default = QPen(QColor("#7F000000"))
@@ -117,6 +119,14 @@ class NodeWidget(QGraphicsItem):
 
     def mouseMoveEvent(self, event):
         super().mouseMoveEvent(event)
+        self.moved = True
+
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+
+        if self.moved:
+            self.moved = False
+            self.node.scene.history.store("Node: has been moved")
 
     def _init(self):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
@@ -182,7 +192,6 @@ class NodeWidget(QGraphicsItem):
     @property
     def padding(self):
         return self._padding
-
 
 # ----------------- NodeContent UI -------------------- #
 

@@ -15,7 +15,6 @@ class NodeEditor(QWidget):
 
     def _init(self):
         # create layout
-        self.setGeometry(200, 200, 800, 600)
         self.layout = QVBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(self.layout)
@@ -25,9 +24,6 @@ class NodeEditor(QWidget):
         # create presentation view
         self.view = NodeGraphicsView(self.scene, self)
         self.layout.addWidget(self.view)
-        # prepare window
-        self.setWindowTitle("Node Editor")
-        self.show()
 
     def _load_stylesheet(self, filename):
         log(self, "_load_stylesheet()", filename)
@@ -38,7 +34,7 @@ class NodeEditor(QWidget):
             stylesheet = file.readAll()
             QApplication.instance().setStyleSheet(str(stylesheet, encoding="utf-8"))
         else:
-            log(self, "Failed to open file", filename)
+            log(self, "Failed to open file %s" % filename)
 
     def addNodes(self):
         nodes = []

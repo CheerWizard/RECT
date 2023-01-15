@@ -1,6 +1,6 @@
 import sys
 from PyQt5.QtWidgets import *
-from node_editor import NodeEditor
+from node_editor.node_editor import NodeEditor
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

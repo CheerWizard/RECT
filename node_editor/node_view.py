@@ -2,11 +2,8 @@ from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QPainter, QMouseEvent
 from PyQt5.QtWidgets import QGraphicsView
 
-from node_editor.core.edge import *
-from node_editor.core.scene import *
-from node_editor.widget.cutline_widget import CutLineWidget
-from node_editor.widget.edge_widget import *
-from node_editor.widget.socket_widget import *
+from node_editor.core.components import *
+from node_editor.presentation.components import *
 
 
 class NodeGraphicsView(QGraphicsView):
@@ -45,7 +42,7 @@ class NodeGraphicsView(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.MiddleButton: 
+        if event.button() == Qt.MiddleButton:
             self.middleMouseButtonPress(event)
         elif event.button() == Qt.LeftButton:
             self.leftMouseButtonPress(event)
@@ -67,10 +64,10 @@ class NodeGraphicsView(QGraphicsView):
     def middleMouseButtonPress(self, event):
         print("middleMouseButtonPress")
         releaseEvent = QMouseEvent(QEvent.MouseButtonRelease, event.localPos(), event.screenPos(),
-                                Qt.LeftButton, Qt.NoButton, event.modifiers())
+                                   Qt.LeftButton, Qt.NoButton, event.modifiers())
         super().mouseReleaseEvent(releaseEvent)
         self.setDragMode(QGraphicsView.ScrollHandDrag)
-        fakeEvent = QMouseEvent(event.type(), event.localPos(), event.screenPos(), 
+        fakeEvent = QMouseEvent(event.type(), event.localPos(), event.screenPos(),
                                 Qt.LeftButton, event.buttons() | Qt.LeftButton, event.modifiers())
         super().mousePressEvent(fakeEvent)
 
@@ -87,12 +84,12 @@ class NodeGraphicsView(QGraphicsView):
         self.lastPressedItemPos = self.mapToScene(event.pos())
 
         if type(item) is SocketWidget:
-            if self.scene.mode == Mode.NONE:
-                self.scene.mode = Mode.EDGE_DRAG
+            if self.scene.mode == SceneMode.NONE:
+                self.scene.mode = SceneMode.EDGE_DRAG
                 self._edgeDragStart(item)
                 return
 
-        if self.scene.mode == Mode.EDGE_DRAG:
+        if self.scene.mode == SceneMode.EDGE_DRAG:
             if self._edgeDragEnd(item): return
 
         if item is None:
@@ -103,9 +100,9 @@ class NodeGraphicsView(QGraphicsView):
         super().mousePressEvent(event)
 
     def _beginCutLine(self, event):
-        self.scene.mode = Mode.EDGE_CUT
+        self.scene.mode = SceneMode.EDGE_CUT
         fake_event = QMouseEvent(QEvent.MouseButtonRelease, event.localPos(), event.screenPos(),
-                                Qt.LeftButton, Qt.NoButton, event.modifiers())
+                                 Qt.LeftButton, Qt.NoButton, event.modifiers())
         super().mouseReleaseEvent(fake_event)
         QApplication.setOverrideCursor(Qt.CrossCursor)
 
@@ -115,7 +112,7 @@ class NodeGraphicsView(QGraphicsView):
     def leftMouseButtonRelease(self, event):
         item = self._pickItem(event)
 
-        if self.scene.mode == Mode.EDGE_DRAG:
+        if self.scene.mode == SceneMode.EDGE_DRAG:
             # measure if distance is too far between release and last press position
             new_left_release_scene_pos = self.mapToScene(event.pos())
             dist = new_left_release_scene_pos - self.lastPressedItemPos
@@ -123,7 +120,7 @@ class NodeGraphicsView(QGraphicsView):
                 if self._edgeDragEnd(item):
                     return
 
-        if self.scene.mode == Mode.EDGE_CUT:
+        if self.scene.mode == SceneMode.EDGE_CUT:
             self._endCutLine()
             return
 
@@ -134,12 +131,12 @@ class NodeGraphicsView(QGraphicsView):
         self.cutLine.line_points = []
         self.cutLine.update()
         QApplication.setOverrideCursor(Qt.ArrowCursor)
-        self.scene.mode = Mode.NONE
+        self.scene.mode = SceneMode.NONE
 
     def _cutIntersectingEdges(self):
         for i in range(len(self.cutLine.line_points) - 1):
             p1 = self.cutLine.line_points[i]
-            p2 = self.cutLine.line_points[i+1]
+            p2 = self.cutLine.line_points[i + 1]
             for edge in self.scene.edges:
                 if edge.grEdge.intersectsWith(p1, p2):
                     edge.remove()
@@ -149,10 +146,10 @@ class NodeGraphicsView(QGraphicsView):
         log(self, "Assign StartSocket")
         self.previousEdge = item.socket.edge
         self.previousStartSocket = item.socket
-        self.dragEdge = Edge(self.scene, item.socket, None, EdgeWidget.Type.Bezier)
+        self.dragEdge = Edge(self.scene, item.socket, None, EdgeType.Bezier)
 
     def _edgeDragEnd(self, item):
-        self.scene.mode = Mode.NONE
+        self.scene.mode = SceneMode.NONE
         log(self, "End EDGE_DRAG")
 
         if type(item) is SocketWidget:
@@ -202,13 +199,13 @@ class NodeGraphicsView(QGraphicsView):
             self.scale(zoomFactor, zoomFactor)
 
     def mouseMoveEvent(self, event):
-
-        if self.scene.mode == Mode.EDGE_DRAG:
+        # edge dragging
+        if self.scene.mode == SceneMode.EDGE_DRAG:
             pos = self.mapToScene(event.pos())
             self.dragEdge.grEdge.setDest(pos.x(), pos.y())
             self.dragEdge.grEdge.update()
-
-        if self.scene.mode == Mode.EDGE_CUT:
+        # edge cursor cutting
+        if self.scene.mode == SceneMode.EDGE_CUT:
             pos = self.mapToScene(event.pos())
             self.cutLine.line_points.append(pos)
             self.cutLine.update()
@@ -216,10 +213,18 @@ class NodeGraphicsView(QGraphicsView):
         super().mouseMoveEvent(event)
 
     def keyPressEvent(self, event):
+        # delete items from scene
         if event.key() == Qt.Key_Delete:
-            if self.scene.mode is not Mode.NODE_EDIT:
+            if self.scene.mode is not SceneMode.NODE_EDIT:
                 self._deleteSelected()
                 return
+        # save scene to file
+        elif event.key() == Qt.Key_S and event.modifiers() & Qt.ControlModifier:
+            self.scene.saveToFile("res/node_editor/node_graph.json")
+        # load scene from file
+        elif event.key() == Qt.Key_L and event.modifiers() & Qt.ControlModifier:
+            self.scene.loadFrom("res/node_editor/node_graph.json")
+
         super().keyPressEvent(event)
 
     def _deleteSelected(self):

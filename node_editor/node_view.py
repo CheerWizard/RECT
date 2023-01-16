@@ -25,9 +25,12 @@ class NodeGraphicsView(QGraphicsView):
         # edge dragging
         self.edgeDragThreshold = 10
         self.setDragMode(QGraphicsView.RubberBandDrag)
+        self.rubberBandDragRect = False
         # cutting line
         self.cutLine = CutLineWidget()
         self.scene.grScene.addItem(self.cutLine)
+        # mouse
+        self.lastMousePos = None
 
     def __str__(self):
         return "<Node %s..%s>" % (hex(id(self))[2:5], hex(id(self))[-3:])
@@ -79,7 +82,7 @@ class NodeGraphicsView(QGraphicsView):
         fakeEvent = QMouseEvent(event.type(), event.localPos(), event.screenPos(),
                                 Qt.LeftButton, event.buttons() & -Qt.LeftButton, event.modifiers())
         super().mouseReleaseEvent(fakeEvent)
-        self.setDragMode(QGraphicsView.DragMode.NoDrag)
+        self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
 
     def leftMouseButtonPress(self, event):
         item = self._pickItem(event)
@@ -99,7 +102,8 @@ class NodeGraphicsView(QGraphicsView):
             if event.modifiers() & Qt.ControlModifier:
                 self._beginCutLine(event)
                 return
-
+            else:
+                self.rubberBandDragRect = True
         super().mousePressEvent(event)
 
     def _beginCutLine(self, event):
@@ -127,8 +131,9 @@ class NodeGraphicsView(QGraphicsView):
             self._endCutLine()
             return
 
-        if self.dragMode() == QGraphicsView.DragMode.RubberBandDrag:
-            self.scene.history.store("View: RubberBandDrag selection")
+        if self.rubberBandDragRect:
+            self.rubberBandDragRect = False
+            self.scene.history.store("View: RubberBandDrag selection", modified=False)
 
         super().mouseReleaseEvent(event)
 
@@ -147,7 +152,7 @@ class NodeGraphicsView(QGraphicsView):
                 if edge.grEdge.intersectsWith(p1, p2):
                     edge.remove()
 
-        self.scene.history.store("View::_cutIntersectingEdges")
+        self.scene.history.store("View::_cutIntersectingEdges", modified=True)
 
     def _edgeDragStart(self, item):
         log(self, "Begin EDGE_DRAG")
@@ -175,7 +180,7 @@ class NodeGraphicsView(QGraphicsView):
                 self.dragEdge.end_socket.bindEdge(self.dragEdge)
                 self.dragEdge.updatePositions()
 
-                self.scene.history.store("New edge created during drag in View::_edgeDragEnd")
+                self.scene.history.store("New edge created during drag in View::_edgeDragEnd", modified=True)
 
                 return True
 
@@ -236,4 +241,4 @@ class NodeGraphicsView(QGraphicsView):
             elif hasattr(item, 'node'):
                 item.node.remove()
 
-        self.scene.history.store("View::_deleteSelected")
+        self.scene.history.store("View::_deleteSelected", modified=True)

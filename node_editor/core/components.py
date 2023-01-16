@@ -2,6 +2,7 @@ import json
 from collections import OrderedDict
 
 from logger import log
+from node_editor.clipboard.scene_clipboard import SceneClipboard
 from node_editor.history.scene_history import SceneHistory
 from serialization.serializable import Serializable
 
@@ -18,7 +19,35 @@ class Scene(Serializable):
         self.width, self.height = 64000, 64000
         self.mode = SceneMode.NONE
         self.history = SceneHistory(self)
+        self.clipboard = SceneClipboard(self)
+
+        self._modified = False
+        self._modified_listeners = []
+
+        self.grScene = None
         self.init()
+
+    @property
+    def modified(self):
+        return self._modified
+
+    @modified.setter
+    def modified(self, is_modified):
+        if not self._modified and is_modified:
+            self._modified = is_modified
+            for listener in self._modified_listeners:
+                listener()
+
+        self._modified = is_modified
+
+    def observe(self, listener):
+        self._modified_listeners.append(listener)
+
+    def removeObserver(self, listener):
+        self._modified_listeners.remove(listener)
+
+    def removeObservers(self):
+        self._modified_listeners.clear()
 
     def init(self):
         self.grScene = NodeGraphicsScene(self)
@@ -39,13 +68,15 @@ class Scene(Serializable):
     def saveToFile(self, filename):
         with open(filename, "w") as file:
             file.write(json.dumps(self.serialize(), indent=4))
-        log(self, "saveToFile %s succeeded!" % filename)
+            log(self, "saveToFile %s succeeded!" % filename)
+            self.modified = False
 
     def loadFrom(self, filename):
         with open(filename, "r") as file:
             scene_json = file.read()
             scene_data = json.loads(scene_json)
             self.deserialize(scene_data)
+            self.modified = False
 
     def serialize(self):
         nodes, edges = [], []
@@ -62,26 +93,29 @@ class Scene(Serializable):
             ('edges', edges),
         ])
 
-    def deserialize(self, data, hashmap={}):
+    def deserialize(self, data, hashmap={}, restore=True):
         self.clear()
         hashmap = {}
-        self.id = data['id']
+        if restore:
+            self.id = data['id']
         # scene info
         self.width = data['width']
         self.height = data['height']
         # create nodes
         for node_data in data['nodes']:
-            Node(self).deserialize(node_data, hashmap)
+            Node(self).deserialize(node_data, hashmap, restore)
         # create edges
         for edge_data in data['edges']:
-            Edge(self).deserialize(edge_data, hashmap)
+            Edge(self).deserialize(edge_data, hashmap, restore)
 
     def clear(self):
+        self.modified = False
         while len(self.nodes) > 0:
             self.nodes[0].remove()
 
 
 # ---------------- Node --------------- #
+
 
 class Node(Serializable):
 
@@ -180,9 +214,10 @@ class Node(Serializable):
             ('outputs', outputs)
         ])
 
-    def deserialize(self, data, hashmap={}):
+    def deserialize(self, data, hashmap={}, restore=True):
         # info
-        self.id = data['id']
+        if restore:
+            self.id = data['id']
         hashmap[data['id']] = self
         self.title = data['title']
         self.setPos(data['pos_x'], data['pos_y'])
@@ -199,7 +234,7 @@ class Node(Serializable):
             position = socket_data['position']
             socket_type = socket_data['socket_type']
             new_socket = Socket(node=self, index=index, position=position, widget_type=socket_type)
-            new_socket.deserialize(data=socket_data, hashmap=hashmap)
+            new_socket.deserialize(data=socket_data, hashmap=hashmap, restore=restore)
             self.inputs.append(new_socket)
 
         for socket_data in outputs_data:
@@ -207,7 +242,7 @@ class Node(Serializable):
             position = socket_data['position']
             socket_type = socket_data['socket_type']
             new_socket = Socket(node=self, index=index, position=position, widget_type=socket_type)
-            new_socket.deserialize(data=socket_data, hashmap=hashmap)
+            new_socket.deserialize(data=socket_data, hashmap=hashmap, restore=restore)
             self.outputs.append(new_socket)
 
         return True
@@ -230,7 +265,7 @@ class NodeContent(Serializable):
             ('id', self.id),
         ])
 
-    def deserialize(self, data, hashmap={}):
+    def deserialize(self, data, hashmap={}, restore=True):
         return False
 
 
@@ -269,8 +304,9 @@ class Socket(Serializable):
             ('socket_type', self.socket_type),
         ])
 
-    def deserialize(self, data, hashmap={}):
-        self.id = data['id']
+    def deserialize(self, data, hashmap={}, restore=True):
+        if restore:
+            self.id = data['id']
         hashmap[data['id']] = self
         return True
 
@@ -283,7 +319,6 @@ class Edge(Serializable):
         super().__init__()
 
         self._start_socket = None
-        self._end_socket = None
         self._end_socket = None
 
         self.scene = scene
@@ -377,8 +412,9 @@ class Edge(Serializable):
             ('edge_type', self.edge_type),
         ])
 
-    def deserialize(self, data, hashmap={}):
-        self.id = data['id']
+    def deserialize(self, data, hashmap={}, restore=True):
+        if restore:
+            self.id = data['id']
         self.start_socket = hashmap[data['start']]
         self.end_socket = hashmap[data['end']]
         self.edge_type = data['edge_type']

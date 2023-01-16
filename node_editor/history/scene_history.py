@@ -1,4 +1,4 @@
-from node_editor.presentation.components import EdgeWidget
+from node_editor.presentation.components import EdgeWidget, NodeWidget
 
 
 class SceneHistory:
@@ -22,7 +22,9 @@ class SceneHistory:
     def restore(self):
         self.restoreStamp(self.history_stack[self.history_ptr])
 
-    def store(self, description):
+    def store(self, description, modified=False):
+        self.scene.modified = modified
+
         if self.history_ptr + 1 < len(self.history_stack):
             self.history_stack = self.history_stack[0:self.history_ptr + 1]
         # remove first element from history, if history is out of bounds
@@ -41,7 +43,7 @@ class SceneHistory:
             'edges': []
         }
         for item in self.scene.grScene.selectedItems():
-            if hasattr(item, 'node'):
+            if isinstance(item, NodeWidget):
                 selected['nodes'].append(item.node.id)
             elif isinstance(item, EdgeWidget):
                 selected['edges'].append(item.edge.id)

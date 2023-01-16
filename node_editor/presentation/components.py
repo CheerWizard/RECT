@@ -126,7 +126,7 @@ class NodeWidget(QGraphicsItem):
 
         if self.moved:
             self.moved = False
-            self.node.scene.history.store("Node: has been moved")
+            self.node.scene.history.store("Node: has been moved", modified=True)
 
     def _init(self):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
@@ -358,16 +358,18 @@ class EdgeWidget(QGraphicsPathItem):
             cpy_s = 0
             cpy_d = 0
 
-            sspos = self.edge.start_socket.position
-            if (s[0] > d[0] and sspos in (SocketPosType.RIGHT_TOP, SocketPosType.RIGHT_BOTTOM)) \
-                    or (s[0] < d[0] and sspos in (SocketPosType.LEFT_BOTTOM, SocketPosType.LEFT_TOP)):
-                cpx_d *= -1
-                cpy_d = ((s[1] - d[1]) / math.fabs((s[1] - d[1]) if (s[1] - d[1]) != 0 else 0.00001))
-                cpy_d *= self.edgeControlRoundness
+            if self.edge.start_socket is not None:
+                sspos = self.edge.start_socket.position
 
-                cpx_s *= -1
-                cpy_s = ((d[1] - s[1]) / math.fabs((d[1] - s[1]) if (d[1] - s[1]) != 0 else 0.00001))
-                cpy_s *= self.edgeControlRoundness
+                if (s[0] > d[0] and sspos in (SocketPosType.RIGHT_TOP, SocketPosType.RIGHT_BOTTOM)) \
+                        or (s[0] < d[0] and sspos in (SocketPosType.LEFT_BOTTOM, SocketPosType.LEFT_TOP)):
+                    cpx_d *= -1
+                    cpy_d = ((s[1] - d[1]) / math.fabs((s[1] - d[1]) if (s[1] - d[1]) != 0 else 0.00001))
+                    cpy_d *= self.edgeControlRoundness
+
+                    cpx_s *= -1
+                    cpy_s = ((d[1] - s[1]) / math.fabs((d[1] - s[1]) if (d[1] - s[1]) != 0 else 0.00001))
+                    cpy_s *= self.edgeControlRoundness
 
             path.cubicTo(
                 s[0] + cpx_s,
@@ -385,6 +387,11 @@ class EdgeWidget(QGraphicsPathItem):
         path = self._getPath()
         return cutpath.intersects(path)
 
+    def boundingRect(self):
+        return self.shape().boundingRect()
+
+    def shape(self):
+        return self._getPath()
 
 # ----------------- CutLine UI -------------------- #
 
@@ -403,7 +410,21 @@ class CutLineWidget(QGraphicsItem):
         self.setZValue(2)
 
     def boundingRect(self):
-        return QRectF(0, 0, 1, 1)
+        return self.shape().boundingRect()
+
+    def shape(self):
+        path = None
+        poly = QPolygonF(self.line_points)
+
+        if len(self.line_points) > 1:
+            path = QPainterPath(self.line_points[0])
+            for pt in self.line_points[1:]:
+                path.lineTo(pt)
+        else:
+            path = QPainterPath(QPointF(0, 0))
+            path.lineTo(QPointF(1, 1))
+
+        return path
 
     def paint(self, painter, options, widget=None):
         painter.setRenderHint(QPainter.Antialiasing)

@@ -1,12 +1,12 @@
 import json
 from collections import OrderedDict
 
-from logger import log
-from node_editor.clipboard.scene_clipboard import SceneClipboard
-from node_editor.history.scene_history import SceneHistory
+from src.core.logger import log
+from src.node_editor.clipboard.scene_clipboard import SceneClipboard
+from src.node_editor.history.scene_history import SceneHistory
 from serialization.serializable import Serializable
 
-from node_editor.presentation.components import *
+from src.node_editor.presentation.components import *
 
 # ---------------- Scene --------------- #
 
@@ -60,10 +60,16 @@ class Scene(Serializable):
         self.edges.append(edge)
 
     def removeNode(self, node):
-        self.nodes.remove(node)
+        if node in self.nodes:
+            self.nodes.remove(node)
+        else:
+            log(self, "removeNode: can't remove node=%s" % node)
 
     def removeEdge(self, edge):
-        self.edges.remove(edge)
+        if edge in self.edges:
+            self.edges.remove(edge)
+        else:
+            log(self, "removeEdge: can't remove edge=%s" % edge)
 
     def saveToFile(self, filename):
         with open(filename, "w") as file:
@@ -142,14 +148,16 @@ class Node(Serializable):
         counter = 0
         if inputs is not None:
             for widget_type in inputs:
-                socket = Socket(node=self, index=counter, position=SocketPosType.LEFT_BOTTOM, widget_type=widget_type)
+                socket = Socket(node=self, index=counter, position=SocketPosType.LEFT_BOTTOM, widget_type=widget_type,
+                                multi_edges=False)
                 counter += 1
                 self.inputs.append(socket)
         # create output sockets
         counter = 0
         if outputs is not None:
             for widget_type in outputs:
-                socket = Socket(node=self, index=counter, position=SocketPosType.RIGHT_TOP, widget_type=widget_type)
+                socket = Socket(node=self, index=counter, position=SocketPosType.RIGHT_TOP, widget_type=widget_type,
+                                multi_edges=True)
                 counter += 1
                 self.outputs.append(socket)
 
@@ -186,13 +194,14 @@ class Node(Serializable):
 
     def updateEdges(self):
         for socket in self.inputs + self.outputs:
-            if socket.hasEdge():
-                socket.edge.updatePositions()
+            for edge in socket.edges:
+                edge.updatePositions()
 
     def remove(self):
         for socket in (self.inputs + self.outputs):
-            if socket.hasEdge():
-                socket.edge.remove()
+            for edge in socket.edges:
+                edge.remove()
+
         self.scene.grScene.removeItem(self.grNode)
         self.grNode = None
         self.scene.removeNode(self)
@@ -233,7 +242,8 @@ class Node(Serializable):
             index = socket_data['index']
             position = socket_data['position']
             socket_type = socket_data['socket_type']
-            new_socket = Socket(node=self, index=index, position=position, widget_type=socket_type)
+            new_socket = Socket(node=self, index=index, position=position, widget_type=socket_type,
+                                multi_edges=False)
             new_socket.deserialize(data=socket_data, hashmap=hashmap, restore=restore)
             self.inputs.append(new_socket)
 
@@ -241,7 +251,8 @@ class Node(Serializable):
             index = socket_data['index']
             position = socket_data['position']
             socket_type = socket_data['socket_type']
-            new_socket = Socket(node=self, index=index, position=position, widget_type=socket_type)
+            new_socket = Socket(node=self, index=index, position=position, widget_type=socket_type,
+                                multi_edges=True)
             new_socket.deserialize(data=socket_data, hashmap=hashmap, restore=restore)
             self.outputs.append(new_socket)
 
@@ -274,27 +285,36 @@ class NodeContent(Serializable):
 
 class Socket(Serializable):
 
-    def __init__(self, node, index=0, position=SocketPosType.LEFT_TOP, widget_type=SocketType.DEFAULT):
+    def __init__(self, node, index=0, position=SocketPosType.LEFT_TOP, widget_type=SocketType.DEFAULT, multi_edges=True):
         super().__init__()
         self.node = node
         self.index = index
         self.position = position
         self.socket_type = widget_type
+        self.multi_edges = multi_edges
         self.grSocket = SocketWidget(self, widget_type)
         self.grSocket.setPos(*self.node.getSocketPosition(index, position))
-        self.edge = None
+        self.edges = []
 
     def __str__(self):
-        return "<Socket %s..%s>" % (hex(id(self))[2:5], hex(id(self))[-3:])
+        return "<Socket %s %s..%s>" % ("Multi-Edge" if self.multi_edges else "Single-Edge", hex(id(self))[2:5], hex(id(self))[-3:])
 
-    def bindEdge(self, edge=None):
-        self.edge = edge
+    def addEdge(self, edge):
+        self.edges.append(edge)
+
+    def removeEdge(self, edge):
+        if edge in self.edges:
+            self.edges.remove(edge)
+        else:
+            log(self, "removeEdge: can't remove edge=%s" % edge)
+
+    def removeEdges(self):
+        while self.edges:
+            edge = self.edges.pop(0)
+            edge.remove()
 
     def getPosition(self):
         return self.node.getSocketPosition(index=self.index, position=self.position)
-
-    def hasEdge(self):
-        return self.edge is not None
 
     def serialize(self):
         return OrderedDict([
@@ -302,11 +322,13 @@ class Socket(Serializable):
             ('index', self.index),
             ('position', self.position),
             ('socket_type', self.socket_type),
+            ('multi_edges', self.multi_edges)
         ])
 
     def deserialize(self, data, hashmap={}, restore=True):
         if restore:
             self.id = data['id']
+        self.multi_edges = data['multi_edges']
         hashmap[data['id']] = self
         return True
 
@@ -336,9 +358,11 @@ class Edge(Serializable):
 
     @start_socket.setter
     def start_socket(self, value):
+        if self._start_socket is not None:
+            self._start_socket.removeEdge(self)
         self._start_socket = value
         if self._start_socket is not None:
-            self._start_socket.edge = self
+            self._start_socket.addEdge(self)
 
     @property
     def end_socket(self):
@@ -346,9 +370,11 @@ class Edge(Serializable):
 
     @end_socket.setter
     def end_socket(self, value):
+        if self._end_socket is not None:
+            self._end_socket.removeEdge(self)
         self._end_socket = value
         if self._end_socket is not None:
-            self._end_socket.edge = self
+            self._end_socket.addEdge(self)
 
     @property
     def edge_type(self):
@@ -387,10 +413,6 @@ class Edge(Serializable):
 
     # remove from all socket slots
     def unbindAll(self):
-        if self.start_socket is not None:
-            self.start_socket.edge = None
-        if self.end_socket is not None:
-            self.end_socket.edge = None
         self.start_socket = None
         self.end_socket = None
 

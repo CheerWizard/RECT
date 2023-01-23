@@ -2,9 +2,8 @@ import random
 
 from PyQt5.QtCore import QFile
 
-from node_editor.core.components import *
-from node_editor.node_view import NodeGraphicsView
-from node_editor.presentation.components import *
+from src.node_editor.core.components import *
+from src.node_editor.node_view import NodeGraphicsView
 
 
 class NodeEditor(QWidget):

@@ -1,4 +1,4 @@
-from node_editor.presentation.components import EdgeWidget, NodeWidget
+from src.node_editor.presentation.components import EdgeWidget, NodeWidget
 
 
 class SceneHistory:

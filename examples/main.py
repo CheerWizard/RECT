@@ -2,7 +2,7 @@ import sys
 
 from PyQt5.QtWidgets import *
 
-from node_editor.node_window import NodeWindow
+from src.node_editor.node_window import NodeWindow
 
 from rdk.RdkModule import RdkModule
 from rdk.PyTest import PyTest

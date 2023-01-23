@@ -1,9 +1,10 @@
-from PyQt5.QtCore import Qt, QEvent, pyqtSignal
+from PyQt5.QtCore import QEvent, pyqtSignal
 from PyQt5.QtGui import QPainter, QMouseEvent
 from PyQt5.QtWidgets import QGraphicsView
 
-from node_editor.core.components import *
-from node_editor.presentation.components import *
+from src.node_editor.core.components import Edge
+from src.node_editor.presentation.components import *
+from src.core.logger import log
 
 
 class NodeGraphicsView(QGraphicsView):
@@ -157,7 +158,7 @@ class NodeGraphicsView(QGraphicsView):
     def _edgeDragStart(self, item):
         log(self, "Begin EDGE_DRAG")
         log(self, "Assign StartSocket")
-        self.previousEdge = item.socket.edge
+        # self.previousEdge = item.socket.edge
         self.previousStartSocket = item.socket
         self.dragEdge = Edge(self.scene, item.socket, None, EdgeType.Bezier)
 
@@ -165,30 +166,24 @@ class NodeGraphicsView(QGraphicsView):
         self.scene.mode = SceneMode.NONE
         log(self, "End EDGE_DRAG")
 
-        if type(item) is SocketWidget:
-            if item.socket != self.previousStartSocket:
-                log(self, "Assign EndSocket")
-                # remove old edge
-                if item.socket.hasEdge():
-                    item.socket.edge.remove()
-                if self.previousEdge is not None:
-                    self.previousEdge.remove()
-                # bind dragged edge to sockets and update edge position
-                self.dragEdge.start_socket = self.previousStartSocket
-                self.dragEdge.end_socket = item.socket
-                self.dragEdge.start_socket.bindEdge(self.dragEdge)
-                self.dragEdge.end_socket.bindEdge(self.dragEdge)
-                self.dragEdge.updatePositions()
-
-                self.scene.history.store("New edge created during drag in View::_edgeDragEnd", modified=True)
-
-                return True
-
         self.dragEdge.remove()
         self.dragEdge = None
 
-        if self.previousEdge is not None:
-            self.previousEdge.start_socket.edge = self.previousEdge
+        if type(item) is SocketWidget:
+            if item.socket != self.previousStartSocket:
+                log(self, "Assign EndSocket")
+                # remove old edges from "single-edge" sockets
+                if not item.socket.multi_edges:
+                    item.socket.removeEdges()
+                if not self.previousStartSocket.multi_edges:
+                    self.previousStartSocket.removeEdges()
+                # new edge
+                new_edge = Edge(self.scene, self.previousStartSocket, item.socket, edge_type=EdgeType.Bezier)
+                self.scene.history.store("New edge created during drag in View::_edgeDragEnd", modified=True)
+                return True
+
+        # if self.previousEdge is not None:
+        #     self.previousEdge.start_socket.edge = self.previousEdge
 
         return False
 

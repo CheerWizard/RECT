@@ -1,9 +1,8 @@
-import json
 import os
 
 from PyQt5.QtWidgets import QMainWindow, QAction, QFileDialog, QLabel, QApplication, QMessageBox
 
-from node_editor.node_editor import NodeEditor
+from src.node_editor.node_editor import NodeEditor
 
 
 class NodeWindow(QMainWindow):

@@ -1,7 +1,7 @@
 import json
 from collections import OrderedDict
 
-from node_editor.presentation.components import *
+from src.node_editor.presentation.components import *
 
 
 class SceneClipboard:
@@ -79,14 +79,14 @@ class SceneClipboard:
         offset_y = mouse_pos.y() - bbox_center_y
         # create nodes
         for node_data in data['nodes']:
-            from node_editor.core.components import Node
+            from src.node_editor.core.components import Node
             node = Node(self._scene)
             node.deserialize(node_data, hashmap, restore=False)
             pos = node.pos
             node.setPos(pos.x() + offset_x, pos.y() + offset_y)
         # create edges
         for edge_data in data['edges']:
-            from node_editor.core.components import Edge
+            from src.node_editor.core.components import Edge
             edge = Edge(self._scene)
             edge.deserialize(edge_data, hashmap, restore=False)
         # store history

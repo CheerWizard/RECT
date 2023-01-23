@@ -248,8 +248,8 @@ class SocketWidget(QGraphicsItem):
         self.socket = socket
         super().__init__(socket.node.grNode)
 
-        self.radius = 6
-        self.outline_width = 1
+        self.radius = 9
+        self.outline_width = 2
 
         self._colors = [
             QColor("#FFFF7700"),

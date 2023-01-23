@@ -399,18 +399,6 @@ class MainWindow(QMainWindow):
     def createStatusBar(self):
         self.statusBar().showMessage("Ready")
 
-    def readSettings(self):
-        settings = QSettings('Trolltech', 'MDI Example')
-        pos = settings.value('pos', QPoint(200, 200))
-        size = settings.value('size', QSize(400, 400))
-        self.move(pos)
-        self.resize(size)
-
-    def writeSettings(self):
-        settings = QSettings('Trolltech', 'MDI Example')
-        settings.setValue('pos', self.pos())
-        settings.setValue('size', self.size())
-
     def activeMdiChild(self):
         activeSubWindow = self.mdiArea.activeSubWindow()
         if activeSubWindow:

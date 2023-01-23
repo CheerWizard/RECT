@@ -1,6 +1,5 @@
+import os.path
 import random
-
-from PyQt5.QtCore import QFile
 
 from src.node_editor.core.components import *
 from src.node_editor.node_view import NodeGraphicsView
@@ -9,8 +8,15 @@ from src.node_editor.node_view import NodeGraphicsView
 class NodeEditor(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._load_stylesheet("res/node_editor/nodestyle.qss")
+        self.filename = None
         self._init()
+
+    def isFilenameSet(self):
+        return self.filename is not None
+
+    def getFilename(self):
+        name = os.path.basename(self.filename) if self.isFilenameSet() else "New Graph"
+        return name + ("*" if self.scene.modified else "")
 
     def _init(self):
         # create layout
@@ -23,17 +29,6 @@ class NodeEditor(QWidget):
         # create presentation view
         self.view = NodeGraphicsView(self.scene, self)
         self.layout.addWidget(self.view)
-
-    def _load_stylesheet(self, filename):
-        log(self, "_load_stylesheet()", filename)
-        file = QFile(filename)
-        opened = file.open(QFile.ReadOnly | QFile.Text)
-
-        if opened:
-            stylesheet = file.readAll()
-            QApplication.instance().setStyleSheet(str(stylesheet, encoding="utf-8"))
-        else:
-            log(self, "Failed to open file %s" % filename)
 
     def addNodes(self):
         nodes = []
